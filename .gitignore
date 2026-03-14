@@ -1,0 +1,90 @@
+# ================================
+# Java
+# ================================
+
+# compiled classes
+*.class
+
+# packaged files
+*.jar
+*.war
+*.ear
+
+# logs
+*.log
+
+# build folders
+target/
+build/
+out/
+
+# temporary files
+*.tmp
+*.bak
+*.swp
+
+# ================================
+# IntelliJ IDEA
+# ================================
+
+.idea/
+*.iml
+*.iws
+
+# IntelliJ caches
+out/
+
+# ================================
+# Maven / Gradle (если появятся)
+# ================================
+
+.gradle/
+build/
+target/
+
+# ================================
+# OS files
+# ================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# ================================
+# Environment / configs
+# ================================
+
+# если вдруг будут секреты
+.env
+.env.local
+
+# ================================
+# Database / dumps
+# ================================
+
+*.sql.backup
+*.dump
+*.bak
+
+# ================================
+# Logs
+# ================================
+
+logs/
+*.log
+
+# ================================
+# JavaFX temp
+# ================================
+
+hs_err_pid*
+replay_pid*
