@@ -1,9 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS dblink;
 
---------------------------------------------------
 -- SYSTEM ROLES
---------------------------------------------------
-
 DO $$
     BEGIN
         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'admin_role') THEN
@@ -26,10 +23,7 @@ DO $$
     END
 $$;
 
---------------------------------------------------
 -- CREATE DATABASE
---------------------------------------------------
-
 CREATE OR REPLACE PROCEDURE sp_create_gym_database(p_db_name VARCHAR)
     LANGUAGE plpgsql
 AS $$
@@ -45,10 +39,7 @@ BEGIN
 END
 $$;
 
---------------------------------------------------
 -- DROP DATABASE
---------------------------------------------------
-
 CREATE OR REPLACE PROCEDURE sp_drop_gym_database(p_db_name VARCHAR)
     LANGUAGE plpgsql
 AS $$
@@ -100,10 +91,7 @@ BEGIN
 END
 $$;
 
---------------------------------------------------
 -- INIT DATABASE
---------------------------------------------------
-
 CREATE OR REPLACE PROCEDURE sp_init_gym_database(p_db_name VARCHAR)
     LANGUAGE plpgsql
 AS $$
@@ -115,10 +103,7 @@ BEGIN
 
     PERFORM dblink_exec(conn, 'REVOKE CREATE ON SCHEMA public FROM PUBLIC');
 
-    --------------------------------------------------
     -- CLIENT TABLE
-    --------------------------------------------------
-
     PERFORM dblink_exec(conn, '
     CREATE TABLE IF NOT EXISTS gym_clients (
                                                client_id SERIAL PRIMARY KEY,
@@ -132,10 +117,7 @@ BEGIN
     )
     ');
 
-    --------------------------------------------------
     -- USERS TABLE
-    --------------------------------------------------
-
     PERFORM dblink_exec(conn, '
     CREATE TABLE IF NOT EXISTS managed_db_users (
                                                     username VARCHAR PRIMARY KEY,
@@ -144,10 +126,7 @@ BEGIN
     )
     ');
 
-    --------------------------------------------------
-    -- CLEAN OLD USERS FOR REINITIALIZED DB
-    --------------------------------------------------
-
+    -- CLEAN OLD USERS
     BEGIN
         FOR u IN
             SELECT username
@@ -178,27 +157,16 @@ BEGIN
 
     PERFORM dblink_exec(conn, 'TRUNCATE TABLE managed_db_users');
 
-    --------------------------------------------------
     -- GRANT PERMISSIONS ON TABLES
-    --------------------------------------------------
-
-    -- Сначала убираем широкие права по умолчанию у PUBLIC
     PERFORM dblink_exec(conn, 'REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC');
     PERFORM dblink_exec(conn, 'REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC');
 
-    -- Даем все права администраторам
     PERFORM dblink_exec(conn, 'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO admin_role');
     PERFORM dblink_exec(conn, 'GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO admin_role');
 
-    -- Гостям даем ТОЛЬКО SELECT (чтение) на таблицу clients
     PERFORM dblink_exec(conn, 'GRANT SELECT ON gym_clients TO guest_role');
-    -- НЕ даем гостям права на последовательность, так как они не могут добавлять записи
-    -- PERFORM dblink_exec(conn, 'GRANT USAGE ON SEQUENCE gym_clients_client_id_seq TO guest_role'); -- УБРАНО!
 
-    --------------------------------------------------
-    -- ADD CLIENT - ТОЛЬКО ДЛЯ АДМИНОВ
-    --------------------------------------------------
-
+    -- ADD CLIENT
     PERFORM dblink_exec(conn, '
     CREATE OR REPLACE PROCEDURE add_client(
         p_last_name VARCHAR,
@@ -235,15 +203,11 @@ BEGIN
     $b$
     ');
 
-    -- ТОЛЬКО АДМИНЫ могут выполнять add_client
+    -- ТОЛЬКО АДМИНЫ
     PERFORM dblink_exec(conn, 'REVOKE ALL ON PROCEDURE add_client(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DATE) FROM PUBLIC');
     PERFORM dblink_exec(conn, 'GRANT EXECUTE ON PROCEDURE add_client(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DATE) TO admin_role');
-    -- Гости НЕ могут выполнять add_client (нет GRANT для guest_role)
 
-    --------------------------------------------------
-    -- UPDATE CLIENT - ТОЛЬКО ДЛЯ АДМИНОВ
-    --------------------------------------------------
-
+    -- UPDATE CLIENT
     PERFORM dblink_exec(conn, '
     CREATE OR REPLACE PROCEDURE update_client(
         p_id INT,
@@ -275,12 +239,8 @@ BEGIN
 
     PERFORM dblink_exec(conn, 'REVOKE ALL ON PROCEDURE update_client(INT, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DATE) FROM PUBLIC');
     PERFORM dblink_exec(conn, 'GRANT EXECUTE ON PROCEDURE update_client(INT, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DATE) TO admin_role');
-    -- Гости НЕ могут выполнять update_client
 
-    --------------------------------------------------
     -- DELETE BY LAST NAME - ТОЛЬКО ДЛЯ АДМИНОВ
-    --------------------------------------------------
-
     PERFORM dblink_exec(conn, '
     CREATE OR REPLACE PROCEDURE delete_clients_by_last_name(p_last VARCHAR)
         LANGUAGE plpgsql
@@ -295,12 +255,8 @@ BEGIN
 
     PERFORM dblink_exec(conn, 'REVOKE ALL ON PROCEDURE delete_clients_by_last_name(VARCHAR) FROM PUBLIC');
     PERFORM dblink_exec(conn, 'GRANT EXECUTE ON PROCEDURE delete_clients_by_last_name(VARCHAR) TO admin_role');
-    -- Гости НЕ могут выполнять delete_clients_by_last_name
 
-    --------------------------------------------------
     -- CLEAR TABLE - ТОЛЬКО ДЛЯ АДМИНОВ
-    --------------------------------------------------
-
     PERFORM dblink_exec(conn, '
     CREATE OR REPLACE PROCEDURE clear_clients_table()
         LANGUAGE plpgsql
@@ -314,12 +270,8 @@ BEGIN
 
     PERFORM dblink_exec(conn, 'REVOKE ALL ON PROCEDURE clear_clients_table() FROM PUBLIC');
     PERFORM dblink_exec(conn, 'GRANT EXECUTE ON PROCEDURE clear_clients_table() TO admin_role');
-    -- Гости НЕ могут выполнять clear_clients_table
 
-    --------------------------------------------------
     -- GET ALL CLIENTS - ДЛЯ ВСЕХ (ТОЛЬКО ЧТЕНИЕ)
-    --------------------------------------------------
-
     PERFORM dblink_exec(conn, '
     CREATE OR REPLACE FUNCTION get_all_clients()
         RETURNS TABLE(
@@ -341,15 +293,12 @@ BEGIN
     $b$
     ');
 
-    -- ВСЕ (и админы, и гости) могут просматривать данные
+    -- ВСЕ (и админы, и гости)
     PERFORM dblink_exec(conn, 'REVOKE ALL ON FUNCTION get_all_clients() FROM PUBLIC');
     PERFORM dblink_exec(conn, 'GRANT EXECUTE ON FUNCTION get_all_clients() TO admin_role');
     PERFORM dblink_exec(conn, 'GRANT EXECUTE ON FUNCTION get_all_clients() TO guest_role');
 
-    --------------------------------------------------
-    -- SEARCH CLIENT - ДЛЯ ВСЕХ (ТОЛЬКО ЧТЕНИЕ)
-    --------------------------------------------------
-
+    -- SEARCH CLIENT
     PERFORM dblink_exec(conn, '
     CREATE OR REPLACE FUNCTION find_clients_by_last_name(p_last VARCHAR)
         RETURNS TABLE(
@@ -372,15 +321,11 @@ BEGIN
     $b$
     ');
 
-    -- ВСЕ (и админы, и гости) могут искать данные
     PERFORM dblink_exec(conn, 'REVOKE ALL ON FUNCTION find_clients_by_last_name(VARCHAR) FROM PUBLIC');
     PERFORM dblink_exec(conn, 'GRANT EXECUTE ON FUNCTION find_clients_by_last_name(VARCHAR) TO admin_role');
     PERFORM dblink_exec(conn, 'GRANT EXECUTE ON FUNCTION find_clients_by_last_name(VARCHAR) TO guest_role');
 
-    --------------------------------------------------
-    -- ADMIN CHECK - ДЛЯ ВСЕХ
-    --------------------------------------------------
-
+    -- ADMIN CHECK
     PERFORM dblink_exec(conn, '
     CREATE OR REPLACE FUNCTION is_admin_user()
         RETURNS BOOLEAN
@@ -396,10 +341,7 @@ BEGIN
     PERFORM dblink_exec(conn, 'GRANT EXECUTE ON FUNCTION is_admin_user() TO admin_role');
     PERFORM dblink_exec(conn, 'GRANT EXECUTE ON FUNCTION is_admin_user() TO guest_role');
 
-    --------------------------------------------------
-    -- CREATE USER - ТОЛЬКО ДЛЯ АДМИНОВ
-    --------------------------------------------------
-
+    -- CREATE USER
     PERFORM dblink_exec(conn, '
     CREATE OR REPLACE PROCEDURE create_db_user(
         p_username VARCHAR,
@@ -454,14 +396,10 @@ BEGIN
     $b$
     ');
 
-    -- ТОЛЬКО АДМИНЫ могут создавать пользователей
     PERFORM dblink_exec(conn, 'REVOKE ALL ON PROCEDURE create_db_user(VARCHAR, VARCHAR, VARCHAR) FROM PUBLIC');
     PERFORM dblink_exec(conn, 'GRANT EXECUTE ON PROCEDURE create_db_user(VARCHAR, VARCHAR, VARCHAR) TO admin_role');
 
-    --------------------------------------------------
-    -- GET USERS - ТОЛЬКО ДЛЯ АДМИНОВ
-    --------------------------------------------------
-
+    -- GET USERS
     PERFORM dblink_exec(conn, '
     CREATE OR REPLACE FUNCTION get_managed_db_users()
         RETURNS TABLE(
@@ -478,14 +416,10 @@ BEGIN
     $b$
     ');
 
-    -- ТОЛЬКО АДМИНЫ могут просматривать список пользователей
     PERFORM dblink_exec(conn, 'REVOKE ALL ON FUNCTION get_managed_db_users() FROM PUBLIC');
     PERFORM dblink_exec(conn, 'GRANT EXECUTE ON FUNCTION get_managed_db_users() TO admin_role');
 
-    --------------------------------------------------
-    -- DELETE USERS - ТОЛЬКО ДЛЯ АДМИНОВ
-    --------------------------------------------------
-
+    -- DELETE USERS
     PERFORM dblink_exec(conn, '
     CREATE OR REPLACE PROCEDURE delete_db_users(p_users VARCHAR[])
         LANGUAGE plpgsql
@@ -521,7 +455,6 @@ BEGIN
     $b$
     ');
 
-    -- ТОЛЬКО АДМИНЫ могут удалять пользователей
     PERFORM dblink_exec(conn, 'REVOKE ALL ON PROCEDURE delete_db_users(VARCHAR[]) FROM PUBLIC');
     PERFORM dblink_exec(conn, 'GRANT EXECUTE ON PROCEDURE delete_db_users(VARCHAR[]) TO admin_role');
 
@@ -529,18 +462,13 @@ BEGIN
     -- DEFAULT PRIVILEGES FOR FUTURE OBJECTS
     --------------------------------------------------
 
-    -- Права по умолчанию для таблиц
     PERFORM dblink_exec(conn, 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO admin_role');
     PERFORM dblink_exec(conn, 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO guest_role');
 
-    -- Права по умолчанию для функций (только SELECT-функции для гостей)
     PERFORM dblink_exec(conn, 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO admin_role');
-    -- НЕ даем гостям execute на новые функции по умолчанию (только явно разрешенные)
     -- PERFORM dblink_exec(conn, 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO guest_role');
 
-    -- Права по умолчанию для последовательностей
     PERFORM dblink_exec(conn, 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO admin_role');
-    -- Гостям не нужны права на последовательности
 
 END
 $$;
